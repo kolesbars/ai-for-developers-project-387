@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0](https://github.com/kolesbars/ai-for-developers-project-387/compare/v1.0.0...v1.1.0) (2026-11-16)
+
+
+### Новое
+
+* перенос приложения из project-386 и агент Claude в GitHub ([be3e4eb](https://github.com/kolesbars/ai-for-developers-project-387/commit/be3e4eb4f7328732f24fe88b94a18ebc83610cf4))
+
+
+### Исправления
+
+* **ci:** агент выполняет скиллы проекта по названию из команды ([6a5f25b](https://github.com/kolesbars/ai-for-developers-project-387/commit/6a5f25b4e526a605f6f85161262b16ebbab36ca2))
+* **ci:** агент выполняет скиллы проекта по названию из команды ([aa30590](https://github.com/kolesbars/ai-for-developers-project-387/commit/aa3059055fc34e83b5cfb165f3e621c118cdc27c))
+* **frontend:** после конфликта Гость остаётся на своём дне ([26f56e3](https://github.com/kolesbars/ai-for-developers-project-387/commit/26f56e34208571cc0b5b2c7ade9ac0ade9351b26))
+
 ## 1.0.0 (2026-11-14)
 
 
