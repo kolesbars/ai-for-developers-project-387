@@ -54,6 +54,8 @@ jobs:
       # Скиллы первого проекта (to-spec, to-tickets, implement-spec и др.) лежат в репозитории:
       # .agents/skills, подключены в .claude/skills. Правила — CLAUDE.md → AGENTS.md,
       # трекер — docs/agents/. Всё приходит с checkout, глобальная установка не нужна.
+      # Скиллы с disable-model-invocation (вызываются только слэш-командой, которой в комментарии
+      # нет) агент выполняет по названию из команды — см. --append-system-prompt.
       - uses: anthropics/claude-code-action@v1
         env:
           # gh для чтения issues и PR по docs/agents/issue-tracker.md (токен задания, только чтение).
@@ -65,3 +67,4 @@ jobs:
             --model claude-sonnet-5-5
             --max-turns 60
             --allowedTools "Skill,Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh api:*),Bash(mise run:*),Bash(mise tasks:*),Bash(npm run:*),Bash(./gradlew:*)"
+            --append-system-prompt "Скиллы проекта лежат в .agents/skills/<имя>/SKILL.md. Часть из них (to-spec, to-tickets, implement-spec и др.) помечена disable-model-invocation и недоступна через инструмент Skill. Если в команде назван скилл, прочитай его SKILL.md (и файлы, на которые он ссылается) и выполни инструкции так, будто пользователь вызвал его слэш-командой. Трекер — docs/agents/issue-tracker.md, вопросы и решения пиши в обсуждение issue."
