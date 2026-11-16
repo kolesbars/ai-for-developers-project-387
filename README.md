@@ -209,6 +209,31 @@ OpenCode, название скилла передаётся текстом ко
 | Ограничения | `timeout-minutes: 10`, `concurrency` по номеру issue |
 | Результат | агент разбирает обращение по скиллу [`triage`](.agents/skills/triage), ставит категорию (`bug` / `enhancement`) и состояние `needs-triage` или `needs-info`, оставляет комментарий. `ready-for-agent` не ставит — это решение человека; код не меняет |
 
+**Регулярный аудит.** Воркфлоу `audit` раз в сутки проверяет скорость страниц `/` и `/admin`
+Lighthouse'ом и заводит issue по находкам. Файл лежит черновиком в
+[`docs/agents/workflow-drafts/audit.yml`](docs/agents/workflow-drafts/audit.yml): у GitHub App нет
+права `workflows`, поэтому человек переносит его в `.github/workflows/audit.yml`. Нужны переменная
+`APP_URL` (Settings → Secrets and variables → Actions → Variables) и метки `audit`, `training`,
+`needs-triage` в репозитории.
+
+- **Что делает.** Job `collect` (без модели, `contents: read`) будит приложение на Render free
+  (curl с повторами до ~3 минут), гоняет `@lhci/cli` (версия зафиксирована) и собирает
+  `audit-report/summary.md`: оценки категорий и проваленные аудиты. Если приложение не ответило —
+  в сводке «нет данных: приложение недоступно» (это не значит, что проблем нет). Job `analyze`
+  (`needs: collect`, `contents: read`, `issues: write`, `id-token: write`) читает сводку и работает
+  с issue; из инструментов только `Read` и `gh issue list/view/create/comment`. Код не меняет.
+- **Где отчёт.** Артефакт `audit-<run_id>` (JSON, HTML, `summary.md`), хранится 30 дней;
+  `audit-report/` в `.gitignore`.
+- **Где вывод.** Комментарий в issue «Журнал аудита производительности» (создаётся агентом с меткой
+  `audit`) и итог в step summary прогона.
+- **Ручной запуск.** Actions → audit → Run workflow; вход `training: true` добавляет в сводку одну
+  учебную находку `training/demo-finding` (issue помечается как учебная, метка `training`).
+- **Защита от дублей.** У находки стабильный ключ `lighthouse/<страница>/<audit-id>`, он пишется в
+  issue строкой `audit-key: <ключ>`. Перед созданием агент ищет `gh issue list --label audit
+  --state all --search "<ключ>"`: есть открытая без новых сведений — ничего не делает; сведения
+  заметно изменились — один комментарий; нет — новое issue. Не больше 3 новых issue за прогон.
+  `concurrency: audit` не даёт прогонам идти параллельно.
+
 **Отличия от OpenCode (вариант из урока).**
 
 - `mentions` (`/opencode`, `/oc`) → `trigger_phrase: '@claude'`, команда одна.
