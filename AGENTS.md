@@ -72,6 +72,12 @@ npm run test --workspace e2e -- tests/api/meeting-types.spec.ts  # нужны с
 - Не поднимать TypeScript выше `~5.9` (typescript-eslint и openapi-typescript не поддерживают TS 7).
 - Не коммитить реальные ключи, токены, сертификаты.
 
+## Агент в GitHub
+
+`.github/workflows/claude.yml` — Claude Code Action по команде `@claude` в issue/PR от участника
+репозитория. На раннере те же правила (этот файл), скиллы (`.agents/skills`) и трекер
+(`docs/agents/`); перед правкой PR — `mise run check`. Подробности — README.md, «Агент в GitHub».
+
 ## Подробная документация
 
 - `README.md` — стек, установка, команды.

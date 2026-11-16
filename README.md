@@ -153,6 +153,50 @@ PostgreSQL внутри контейнера: Типы встреч и брон�
 первый запрос после этого идёт ~1 минуту). Чтобы данные сохранялись, задайте `DATABASE_URL`
 внешнего PostgreSQL в Environment сервиса.
 
+## Агент в GitHub
+
+Воркфлоу [`.github/workflows/claude.yml`](.github/workflows/claude.yml) запускает
+[Claude Code GitHub Action](https://github.com/anthropics/claude-code-action) — тот же агент,
+что работал с проектом локально, но на раннере GitHub Actions.
+
+| | |
+|---|---|
+| Событие | `issue_comment` (обсуждение issue или PR) и `pull_request_review_comment` (комментарий к строке diff), только `types: [created]` — правка комментария агента не запускает |
+| Команда | `@claude` (`trigger_phrase`, значение по умолчанию). Пример: `@claude запусти скилл to-spec по обсуждению этого issue` |
+| Кто может вызвать | автор комментария — `OWNER`, `MEMBER` или `COLLABORATOR`; комментарии ботов (и самого `claude[bot]`) игнорируются |
+| Модель | `claude-sonnet-5-5` (`claude_args: --model`), не больше 60 шагов за вызов |
+| Назначение | обсуждение и уточнение задач, скиллы `to-spec` / `to-tickets` / `implement-spec`, ответы на ревью и правки PR |
+| Результат | ответ — комментарием от `claude[bot]` в том же issue или PR (правки — в ветке `claude/…` или в PR); ход работы — во вкладке [Actions](https://github.com/kolesbars/ai-for-developers-project-387/actions/workflows/claude.yml) |
+
+**Скиллы и настройки на раннере.** Раннер стартует с чистого окружения, поэтому всё нужное
+агенту хранится в репозитории и приходит с checkout: скиллы первого проекта —
+`.agents/skills` (подключены в `.claude/skills`), правила — `AGENTS.md` (через `CLAUDE.md`),
+трекер и метки — `docs/agents/`. Глобально установленные скиллы не используются. mise ставит те же
+JDK и Node, что в CI, — агент может прогнать `mise run check`. Issues читает `gh` с токеном
+задания (только чтение).
+
+**Авторизация и права.** Стандартный режим GitHub App: установлено приложение
+[Claude](https://github.com/apps/claude), action получает его токен по OIDC (`id-token: write`)
+и пишет правами приложения. Токен задания — только чтение (`contents`, `issues`,
+`pull-requests`, `actions`), у `actions/checkout` — `persist-credentials: false`.
+Ключ модели — секрет `CLAUDE_CODE_OAUTH_TOKEN` (подписка Claude, токен из `claude setup-token`)
+в Settings → Secrets and variables → Actions; в репозитории ключей нет.
+`pull_request_target` не используется, а комментарий из чужого fork не проходит проверку автора —
+недоверенный код секрет не получает.
+
+**Остановка.** У задания `timeout-minutes: 30`; `concurrency` — один прогон на issue/PR.
+Текущий прогон останавливает Cancel workflow, будущие — Disable workflow в Actions; в крайнем
+случае токен отзывается в настройках Claude.
+
+**Отличия от OpenCode (вариант из урока).**
+
+- `mentions` (`/opencode`, `/oc`) → `trigger_phrase: '@claude'`, команда одна.
+- `share` → нет аналога: Claude Code Action не публикует сессии по ссылке. Решение — сессии не
+  публикуются; видны только комментарий агента и лог Actions. В открытом репозитории лог виден
+  всем, поэтому `show_full_output` выключен (по умолчанию).
+- `model: <провайдер>/<модель>` → `--model` в `claude_args`; провайдер один — Anthropic, оплата
+  по подписке, без отдельного бюджета.
+
 ## MCP для агента
 
 В `.mcp.json` — проектная конфигурация MCP для Claude Code (секретов в файле нет):

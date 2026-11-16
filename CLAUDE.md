@@ -8,6 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Локальное окружение
 
+Относится к машине разработчика; на раннере GitHub Actions mise и `gh` уже в PATH.
+
 - mise установлен в `~/.local/bin` и не активирован в shell — в Bash-командах нужен
   `export PATH=$HOME/.local/bin:$PATH` (или `~/.local/bin/mise ...`).
 - Сеть на машине разработчика медленная (GitHub и services.gradle.org ~20 КБ/с): не менять версии
