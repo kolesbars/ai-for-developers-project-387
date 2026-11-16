@@ -222,9 +222,10 @@ class BookingsTest {
         apiTest(clock = fixedClock(Instant.parse("2026-11-12T05:00:00Z"))) {
             meetingType("half", "Полчаса", 30)
 
-            // now = 10:00
-            for (startAt in listOf("2026-11-12T05:30:00Z", "2026-11-12T05:59:00Z", "2026-11-12T05:00:00Z")) {
-                val response = book("half", startAt) // 10:30, 10:59, 10:00
+            // now = 10:00. Каждый старт лежит в сетке :00/:30 и в Рабочих часах,
+            // поэтому 422 возможен только из-за запаса (старт вне сетки дал бы 422 и без него).
+            for (startAt in listOf("2026-11-12T05:00:00Z", "2026-11-12T05:30:00Z")) {
+                val response = book("half", startAt) // 10:00 (= now), 10:30
                 assertEquals(HttpStatusCode.UnprocessableEntity, response.status, startAt)
                 assertEquals("slot_unavailable", response.code(), startAt)
             }
