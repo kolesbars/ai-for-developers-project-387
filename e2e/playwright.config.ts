@@ -25,7 +25,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
-    trace: 'retain-on-failure',
+    // PW_TRACE=on — job e2e-pr в CI сохраняет trace каждого теста; по умолчанию только упавшие.
+    trace: process.env.PW_TRACE === 'on' ? 'on' : 'retain-on-failure',
   },
   projects: [
     {
