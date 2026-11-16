@@ -237,6 +237,20 @@ Variables) и метки `audit`, `training`, `needs-triage`.
   один комментарий; закрыта как wontfix — пропуск; закрыта как исправленная — новое issue со
   ссылкой на прежнее и исправивший PR. Не больше 3 новых issue за прогон. `concurrency: audit`
   не даёт прогонам идти параллельно.
+- **Факты прогонов** (проверка вручную из `main`; подробности — в журнале
+  [#25](https://github.com/kolesbars/ai-for-developers-project-387/issues/25)).
+  - [Первый прогон](https://github.com/kolesbars/ai-for-developers-project-387/actions/runs/43937713808):
+    найдены проваленные аудиты на `home` и `admin`; по лимиту заведены три issue — #22
+    (`lighthouse/home/meta-description`), #23 (`lighthouse/home/color-contrast`), #24
+    (`lighthouse/home/render-blocking-resources`). Журнал #25 создал агент.
+  - [Повторный прогон](https://github.com/kolesbars/ai-for-developers-project-387/actions/runs/43938671824):
+    #22, #23 и #24 пропущены как дубли открытых задач (новых сведений нет), поэтому повторов не
+    появилось. Вместо них из-за лимита заведены ещё не охваченные находки: #26
+    (`lighthouse/home/total-blocking-time`), #27 (`lighthouse/home/unused-javascript`), #28
+    (`lighthouse/home/robots-txt`). Остальное (в т.ч. `lighthouse/admin/*`) оставлено на
+    следующие прогоны.
+  - Отчёт каждого прогона — артефакт `audit-<run_id>` (хранится 30 дней), постоянный вывод —
+    журнал #25 (по комментарию на прогон).
 
 **Отличия от OpenCode (вариант из урока).**
 
