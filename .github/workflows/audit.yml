@@ -1,6 +1,5 @@
 # Регулярный аудит производительности: Lighthouse по страницам приложения и автосоздание issue.
-# ЧЕРНОВИК: у GitHub App нет права `workflows`, поэтому файл лежит здесь. Человеку нужно
-# перенести его в .github/workflows/audit.yml. Описание — README.md, «Агент в GitHub» → «Регулярный аудит».
+# Описание — README.md, «Агент в GitHub» → «Регулярный аудит».
 name: audit
 
 on:
@@ -63,11 +62,7 @@ jobs:
             } > audit-report/summary.md
           fi
 
-      - uses: actions/setup-node@v6
-        if: steps.wake.outputs.available == 'true'
-        with:
-          node-version: '22'
-
+      # Node и Chrome уже есть на ubuntu-latest.
       - name: Lighthouse CI
         if: steps.wake.outputs.available == 'true'
         run: |
@@ -86,7 +81,8 @@ jobs:
             echo
             echo "Приложение: $APP_URL"
             echo "Прогон: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-            for f in audit-report/lhr-*.json; do
+            # Имена отчётов задаёт lhci (хост-путь-время), поэтому список берём из manifest.json.
+            jq -r '.[].jsonPath' audit-report/manifest.json | while read -r f; do
               jq -r '
                 def page: (.requestedUrl | sub("^https?://[^/]+"; "") | sub("/+$"; "")) as $p
                   | if $p == "" then "home" else ($p | ltrimstr("/")) end;
@@ -111,7 +107,7 @@ jobs:
             fi
           } > audit-report/summary.md
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: audit-${{ github.run_id }}
@@ -134,10 +130,26 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v4
         with:
           name: audit-${{ github.run_id }}
           path: audit-report
+
+      # Без модели: все issue аудита с их ключами. Поиск GitHub индексирует новые issue с
+      # задержкой, и повторный прогон сразу после первого не нашёл бы только что созданную задачу.
+      - name: Existing audit issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh issue list --label audit --state all --limit 300 \
+            --json number,title,state,stateReason,labels,body --jq '
+              .[] | "- #\(.number) [\(.state)\(if .stateReason then "/" + .stateReason else "" end)] "
+                + "\(.title) | метки: \([.labels[].name] | join(", ")) | "
+                + ((.body // "") | [scan("audit-key: *`?([^`\\s]+)")[0]] | if length == 0 then "без ключа" else "ключ: " + join(", ") end)
+            ' > audit-report/existing-issues.md
+          [ -s audit-report/existing-issues.md ] || echo "(issue с меткой audit нет)" > audit-report/existing-issues.md
+          cat audit-report/existing-issues.md
 
       - name: Secret is set (infra)
         env:
@@ -146,6 +158,7 @@ jobs:
           [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || { echo "::error::infra: нет секрета"; exit 1; }
 
       - uses: anthropics/claude-code-action@v1
+        id: agent
         env:
           GH_TOKEN: ${{ github.token }}
           APP_URL: ${{ vars.APP_URL }}
@@ -158,11 +171,14 @@ jobs:
             1. Прочитай audit-report/summary.md (Read). Весь JSON не нужен.
             2. Во всех issue и комментариях указывай, какое приложение (URL) и какой прогон проверялись, с этой ссылкой на прогон.
             3. У каждой находки стабильный ключ: `lighthouse/<страница>/<audit-id>` (страница — как в сводке) или `training/demo-finding` для учебной.
-            4. Перед созданием ищи существующие: `gh issue list --label audit --state all --search "<ключ>"`
-               (при необходимости открой через `gh issue view`; ориентируйся на строку `audit-key: <ключ>` в тексте).
-               - Есть открытая и новых сведений нет — ничего не создавай и не комментируй.
+            4. Существующие задачи аудита с ключами — в audit-report/existing-issues.md (полный список, источник правды;
+               `gh issue list --search` индексирует новые issue с задержкой, на него не полагайся). Подробности — `gh issue view`.
+               - Есть открытая с тем же ключом и новых сведений нет — ничего не создавай и не комментируй.
                - Есть открытая, но сведения новые (значение заметно изменилось) — один комментарий в неё.
-               - Нет открытой — создай issue (`gh issue create`): метки `audit`, `needs-triage` (+ `training` для учебной);
+               - Есть только закрытая как NOT_PLANNED (wontfix) — ничего не делай, решение уже принято человеком.
+               - Есть только закрытая как COMPLETED — проблема вернулась: создай новое issue и сошлись в нём на прежнее
+                 и на исправивший его PR (найди в `gh issue view <N> --comments`, если есть).
+               - Нет ни одной — создай issue (`gh issue create`): метки `audit`, `needs-triage` (+ `training` для учебной);
                  в тексте — проблема, предлагаемое действие, ссылка на прогон, URL приложения и отдельная строка `audit-key: <ключ>`.
                  Учебная находка явно помечена как учебная и в заголовке, и в тексте.
             5. Не больше 3 новых issue за прогон — выбирай самые значимые находки.
@@ -170,9 +186,38 @@ jobs:
             7. Итог прогона (найдено / ничего не найдено / нет данных; какие issue созданы или пропущены как дубли; ссылка на прогон)
                добавь комментарием в issue «Журнал аудита производительности» (найди по заголовку:
                `gh issue list --label audit --state all --search "Журнал аудита производительности in:title"`;
-               нет — создай с меткой `audit`). Этот же итог выведи финальным ответом — он попадёт в step summary.
+               нет — создай с меткой `audit`; номер журнала есть и в audit-report/existing-issues.md).
+               Этот же итог выведи финальным ответом — следующий шаг воркфлоу запишет его в step summary.
             8. Код не меняй, ветки и PR не создавай: решение о реализации принимает человек.
           claude_args: >-
             --model claude-sonnet-5-5
             --max-turns 30
             --allowedTools "Read,Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh issue create:*),Bash(gh issue comment:*)"
+
+      # Без модели: финальный ответ агента — в step summary и в артефакт вывода. Постоянная
+      # копия вывода — комментарий в журнале (срок хранения артефактов ограничен).
+      - name: Agent output
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
+        run: |
+          mkdir -p audit-output
+          if [ -n "$EXECUTION_FILE" ] && [ -s "$EXECUTION_FILE" ]; then
+            jq -r '[.[] | select(.type == "result")] | last | .result // empty' "$EXECUTION_FILE" > audit-output/agent-output.md
+            cp "$EXECUTION_FILE" audit-output/execution.json
+          fi
+          if [ -s audit-output/agent-output.md ]; then
+            { echo "## Вывод агента аудита"; echo; cat audit-output/agent-output.md; } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::агент не сохранил вывод"
+            echo "## Вывод агента аудита: нет (агент не завершил работу)" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-output-${{ github.run_id }}
+          path: audit-output/
+          retention-days: 30
+          if-no-files-found: warn

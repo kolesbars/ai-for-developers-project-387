@@ -209,30 +209,34 @@ OpenCode, название скилла передаётся текстом ко
 | Ограничения | `timeout-minutes: 10`, `concurrency` по номеру issue |
 | Результат | агент разбирает обращение по скиллу [`triage`](.agents/skills/triage), ставит категорию (`bug` / `enhancement`) и состояние `needs-triage` или `needs-info`, оставляет комментарий. `ready-for-agent` не ставит — это решение человека; код не меняет |
 
-**Регулярный аудит.** Воркфлоу `audit` раз в сутки проверяет скорость страниц `/` и `/admin`
-Lighthouse'ом и заводит issue по находкам. Файл лежит черновиком в
-[`docs/agents/workflow-drafts/audit.yml`](docs/agents/workflow-drafts/audit.yml): у GitHub App нет
-права `workflows`, поэтому человек переносит его в `.github/workflows/audit.yml`. Нужны переменная
-`APP_URL` (Settings → Secrets and variables → Actions → Variables) и метки `audit`, `training`,
-`needs-triage` в репозитории.
+**Регулярный аудит.** Воркфлоу [`audit`](.github/workflows/audit.yml) раз в сутки (cron
+`17 3 * * *` — 06:17 МСК, GitHub считает в UTC и может задержать или пропустить запуск) проверяет
+скорость страниц `/` и `/admin` Lighthouse'ом и заводит issue по находкам. Ручной запуск —
+`workflow_dispatch`. Нужны переменная `APP_URL` (Settings → Secrets and variables → Actions →
+Variables) и метки `audit`, `training`, `needs-triage`.
 
-- **Что делает.** Job `collect` (без модели, `contents: read`) будит приложение на Render free
-  (curl с повторами до ~3 минут), гоняет `@lhci/cli` (версия зафиксирована) и собирает
+- **Что делает.** Job `collect` (без модели, `contents: read`, 20 минут) будит приложение на Render
+  free (curl с повторами до ~3 минут), гоняет `@lhci/cli@0.15.1` и собирает
   `audit-report/summary.md`: оценки категорий и проваленные аудиты. Если приложение не ответило —
   в сводке «нет данных: приложение недоступно» (это не значит, что проблем нет). Job `analyze`
-  (`needs: collect`, `contents: read`, `issues: write`, `id-token: write`) читает сводку и работает
-  с issue; из инструментов только `Read` и `gh issue list/view/create/comment`. Код не меняет.
-- **Где отчёт.** Артефакт `audit-<run_id>` (JSON, HTML, `summary.md`), хранится 30 дней;
-  `audit-report/` в `.gitignore`.
-- **Где вывод.** Комментарий в issue «Журнал аудита производительности» (создаётся агентом с меткой
-  `audit`) и итог в step summary прогона.
-- **Ручной запуск.** Actions → audit → Run workflow; вход `training: true` добавляет в сводку одну
-  учебную находку `training/demo-finding` (issue помечается как учебная, метка `training`).
-- **Защита от дублей.** У находки стабильный ключ `lighthouse/<страница>/<audit-id>`, он пишется в
-  issue строкой `audit-key: <ключ>`. Перед созданием агент ищет `gh issue list --label audit
-  --state all --search "<ключ>"`: есть открытая без новых сведений — ничего не делает; сведения
-  заметно изменились — один комментарий; нет — новое issue. Не больше 3 новых issue за прогон.
-  `concurrency: audit` не даёт прогонам идти параллельно.
+  (`needs: collect`, 15 минут, `contents: read`, `issues: write`, `id-token: write`) читает сводку и
+  работает с issue; из инструментов только `Read` и `gh issue list/view/create/comment`. Код не
+  меняет, PR не создаёт: решение о реализации находки принимает человек.
+- **Где отчёт.** Артефакт `audit-<run_id>` (JSON и HTML Lighthouse, `summary.md`,
+  `existing-issues.md`), хранится 30 дней; `audit-report/` в `.gitignore`, в коммиты не попадает.
+- **Где вывод.** Постоянный — комментарий в issue «Журнал аудита производительности» (агент создаёт
+  его с меткой `audit` при первом прогоне). Временный — step summary прогона и артефакт
+  `audit-output-<run_id>` (финальный ответ агента и его журнал действий).
+- **Учебный прогон.** Вход `training: true` добавляет в сводку явно обозначенную учебную находку
+  `training/demo-finding`; issue по ней помечается как учебное (метка `training`) и не считается
+  дефектом приложения.
+- **Защита от дублей.** У находки стабильный ключ `lighthouse/<страница>/<audit-id>`, в issue он
+  пишется строкой `audit-key: <ключ>`. Шаг без модели выгружает все issue с меткой `audit` и их
+  ключами в `existing-issues.md` — не через поиск GitHub, который индексирует новые issue с
+  задержкой. Открытая задача без новых сведений — ничего не делается; сведения заметно изменились —
+  один комментарий; закрыта как wontfix — пропуск; закрыта как исправленная — новое issue со
+  ссылкой на прежнее и исправивший PR. Не больше 3 новых issue за прогон. `concurrency: audit`
+  не даёт прогонам идти параллельно.
 
 **Отличия от OpenCode (вариант из урока).**
 
