@@ -1,0 +1,67 @@
+# Агент Claude Code в GitHub: отвечает на команду @claude в issue и pull request.
+# Описание, модель и решения по безопасности — README.md, раздел «Агент в GitHub».
+name: claude
+
+on:
+  # Обсуждение issue или pull request.
+  issue_comment:
+    types: [created]
+  # Комментарий к строке diff в pull request.
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  claude:
+    # Модель не вызывается, если в комментарии нет команды, автор не участник репозитория
+    # или комментарий оставил бот (в том числе сам claude[bot]).
+    if: |
+      contains(github.event.comment.body, '@claude') &&
+      github.event.comment.user.type != 'Bot' &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Один прогон на issue/PR; следующая команда ждёт, а не отменяет текущую работу.
+    concurrency:
+      group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: false
+    # Стандартный режим GitHub App: агент пишет (комментарии, ветки, коммиты) правами
+    # приложения Claude, которое action получает по OIDC (id-token: write).
+    # Собственный GITHUB_TOKEN задания — только на чтение.
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      # Те же инструменты, что локально и в CI (JDK, Node из mise.toml): агент может
+      # прогнать mise run check перед правкой PR.
+      - uses: jdx/mise-action@v5
+        with:
+          install: true
+          cache: true
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Install dependencies
+        run: mise run install
+
+      # Скиллы первого проекта (to-spec, to-tickets, implement-spec и др.) лежат в репозитории:
+      # .agents/skills, подключены в .claude/skills. Правила — CLAUDE.md → AGENTS.md,
+      # трекер — docs/agents/. Всё приходит с checkout, глобальная установка не нужна.
+      - uses: anthropics/claude-code-action@v1
+        env:
+          # gh для чтения issues и PR по docs/agents/issue-tracker.md (токен задания, только чтение).
+          GH_TOKEN: ${{ github.token }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          trigger_phrase: '@claude'
+          claude_args: >-
+            --model claude-sonnet-5-5
+            --max-turns 60
+            --allowedTools "Skill,Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh api:*),Bash(mise run:*),Bash(mise tasks:*),Bash(npm run:*),Bash(./gradlew:*)"
