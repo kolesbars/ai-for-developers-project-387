@@ -26,10 +26,11 @@ jobs:
       cancel-in-progress: false
     # Стандартный режим GitHub App: агент пишет (комментарии, ветки, коммиты) правами
     # приложения Claude, которое action получает по OIDC (id-token: write).
-    # Собственный GITHUB_TOKEN задания — только на чтение.
+    # Собственный GITHUB_TOKEN задания читает код и PR; issues: write — чтобы скиллы
+    # to-spec / to-tickets публиковали спецификацию и тикеты, ставили метки и связи.
     permissions:
       contents: read
-      issues: read
+      issues: write
       pull-requests: read
       actions: read
       id-token: write
@@ -58,7 +59,8 @@ jobs:
       # нет) агент выполняет по названию из команды — см. --append-system-prompt.
       - uses: anthropics/claude-code-action@v1
         env:
-          # gh для чтения issues и PR по docs/agents/issue-tracker.md (токен задания, только чтение).
+          # gh для работы с issues по docs/agents/issue-tracker.md: токен задания —
+          # запись только в issues и метки, код и PR — на чтение.
           GH_TOKEN: ${{ github.token }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -66,5 +68,5 @@ jobs:
           claude_args: >-
             --model claude-sonnet-5-5
             --max-turns 60
-            --allowedTools "Skill,Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh api:*),Bash(mise run:*),Bash(mise tasks:*),Bash(npm run:*),Bash(./gradlew:*)"
-            --append-system-prompt "Скиллы проекта лежат в .agents/skills/<имя>/SKILL.md. Часть из них (to-spec, to-tickets, implement-spec и др.) помечена disable-model-invocation и недоступна через инструмент Skill. Если в команде назван скилл, прочитай его SKILL.md (и файлы, на которые он ссылается) и выполни инструкции так, будто пользователь вызвал его слэш-командой. Трекер — docs/agents/issue-tracker.md, вопросы и решения пиши в обсуждение issue."
+            --allowedTools "Skill,Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh label create:*),Bash(gh repo view:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh api:*),Bash(mise run:*),Bash(mise tasks:*),Bash(npm run:*),Bash(./gradlew:*)"
+            --append-system-prompt "Скиллы проекта лежат в .agents/skills/<имя>/SKILL.md. Часть из них (to-spec, to-tickets, implement-spec и др.) помечена disable-model-invocation и недоступна через инструмент Skill. Если в команде назван скилл, прочитай его SKILL.md (и файлы, на которые он ссылается) и выполни инструкции так, будто пользователь вызвал его слэш-командой. Трекер — docs/agents/issue-tracker.md, вопросы и решения пиши в обсуждение issue. Метки — docs/agents/triage-labels.md; если нужной метки в репозитории нет, создай её через gh label create."
