@@ -112,9 +112,11 @@ jobs:
     if: always() && needs.claude.result != 'success' && needs.claude.result != 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Комментарий в PR токеном Actions требует pull-requests: write (issues: write хватает
+    # только для обычных issue); без него отчёт о причине в PR не публиковался.
     permissions:
       issues: write
-      pull-requests: read
+      pull-requests: write
       actions: read
     steps:
       - name: Report reason
@@ -135,6 +137,8 @@ jobs:
           else reason="причина не определена, смотрите лог"; fi
           sha=${{ github.sha }}
           if [ "$IS_PR" = true ]; then sha=$(gh pr view "$N" --repo "$repo" --json headRefOid --jq .headRefOid); fi
+          # Причина остаётся в логе, даже если публикация комментария не удастся.
+          echo "Причина: $reason, head SHA: $sha"
           gh issue comment "$N" --repo "$repo" --body "### Агент не завершил работу
 
           - Причина: \`$reason\`
