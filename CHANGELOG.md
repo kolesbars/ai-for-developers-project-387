@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.2](https://github.com/kolesbars/ai-for-developers-project-387/compare/v1.1.1...v1.1.2) (2026-11-16)
+
+
+### Исправления
+
+* **ci:** авторевью получает текст тикетов, а не только обсуждение ([509ae26](https://github.com/kolesbars/ai-for-developers-project-387/commit/509ae26f2dfe43a200eea868c893012cddc827bf))
+* **ci:** авторевью получает текст тикетов, а не только обсуждение ([4445fc5](https://github.com/kolesbars/ai-for-developers-project-387/commit/4445fc5a5de2c6046ee5fbeb0585c3935c5e7fd5))
+
+
+### Документация
+
+* REVIEW.md, шаблон PR, описание авторевью и лимита в README ([#13](https://github.com/kolesbars/ai-for-developers-project-387/issues/13)) ([26396f7](https://github.com/kolesbars/ai-for-developers-project-387/commit/26396f7099ecaf7cbd493d1da92dafb7bf153779))
+
 ## [1.1.1](https://github.com/kolesbars/ai-for-developers-project-387/compare/v1.1.0...v1.1.1) (2026-11-16)
 
 
