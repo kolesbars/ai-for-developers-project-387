@@ -64,12 +64,26 @@ jobs:
           gh pr view "$PR" --json body --jq .body > ctx/pr-body.md
           gh pr diff "$PR" > ctx/pr.diff
           gh pr checks "$PR" > ctx/checks.txt || true
-          # Тикеты по ссылкам и #N из описания PR (только этого репозитория).
+          # Тикеты по ссылкам и #N из описания PR (только этого репозитория): текст issue
+          # и всё обсуждение со ссылками на комментарии. Не `gh issue view --comments`:
+          # с этим флагом gh выводит только комментарии, без текста issue, и у тикетов без
+          # обсуждения файл получался пустым — ревьюер не видел критериев приёмки.
           grep -oE '(github\.com/${{ github.repository }}/issues/|#)[0-9]+' ctx/pr-body.md \
             | grep -oE '[0-9]+$' | sort -un | head -10 | while read -r n; do
-              gh issue view "$n" --comments > "ctx/issue-$n.md" || true
+              gh issue view "$n" --json number,title,state,labels,body,comments --jq '
+                "# #\(.number) \(.title) [\(.state)]\n"
+                + "Метки: \([.labels[].name] | join(", "))\n\n"
+                + (if (.body // "") == "" then "(текст issue пуст)" else .body end)
+                + "\n\n## Обсуждение (\(.comments | length))\n\n"
+                + ([.comments[] | "### \(.author.login), \(.createdAt)\n\(.url)\n\n\(.body)\n"] | join("\n"))
+              ' > "ctx/issue-$n.md" || true
+              # Защита: ревьюер должен знать, что материала нет, а не молча получить пустой файл.
+              if [ ! -s "ctx/issue-$n.md" ]; then
+                echo "::warning::не удалось получить issue #$n"
+                echo "НЕ УДАЛОСЬ ПОЛУЧИТЬ issue #$n — отметь это в ревью как пробел." > "ctx/issue-$n.md"
+              fi
             done
-          ls ctx
+          wc -c ctx/*
 
       - name: Review (model)
         env:
