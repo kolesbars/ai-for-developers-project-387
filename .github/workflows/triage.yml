@@ -1,0 +1,50 @@
+# Автотриаж новых обращений: Claude Code разбирает свежий issue по скиллу triage.
+# Описание и решения по безопасности — README.md, раздел «Агент в GitHub».
+name: triage
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage:
+    # Не разбираем обращения ботов и посторонних, а также тикеты, уже подготовленные
+    # скиллами (ready-for-agent, ready-for-human, needs-info).
+    if: |
+      github.event.issue.user.type != 'Bot' &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association) &&
+      !contains(github.event.issue.labels.*.name, 'ready-for-agent') &&
+      !contains(github.event.issue.labels.*.name, 'ready-for-human') &&
+      !contains(github.event.issue.labels.*.name, 'needs-info')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: triage-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Разбери обращение #${{ github.event.issue.number }} в ${{ github.repository }} по скиллу triage:
+            прочитай .agents/skills/triage/SKILL.md (и файлы, на которые он ссылается), трекер — docs/agents/issue-tracker.md,
+            метки — docs/agents/triage-labels.md.
+            - Поставь категорию (bug или enhancement) и состояние needs-triage или needs-info.
+            - Оставь комментарий с разбором; он начинается с дисклеймера из скилла.
+            - Не ставь ready-for-agent: это решение человека.
+            - Код не меняй, веток и PR не создавай.
+          claude_args: >-
+            --model claude-sonnet-5-5
+            --max-turns 20
+            --allowedTools "Read,Glob,Grep,Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(gh label list:*)"
