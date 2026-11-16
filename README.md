@@ -198,6 +198,17 @@ OpenCode, название скилла передаётся текстом ко
 Текущий прогон останавливает Cancel workflow, будущие — Disable workflow в Actions; в крайнем
 случае токен отзывается в настройках Claude.
 
+**Автотриаж.** Воркфлоу [`.github/workflows/triage.yml`](.github/workflows/triage.yml) разбирает
+новые обращения без команды `@claude`.
+
+| | |
+|---|---|
+| Событие | `issues`, `types: [opened]` |
+| Фильтры | автор не бот; `author_association` — `OWNER`, `MEMBER` или `COLLABORATOR`; у issue нет меток `ready-for-agent`, `ready-for-human`, `needs-info` (подготовленные скиллами тикеты не разбираются повторно) |
+| Права | `contents: read`, `issues: write`, `id-token: write`; `actions/checkout` — `persist-credentials: false`; `--allowedTools` — чтение кода и `gh issue view/list/comment/edit`, `gh label list` |
+| Ограничения | `timeout-minutes: 10`, `concurrency` по номеру issue |
+| Результат | агент разбирает обращение по скиллу [`triage`](.agents/skills/triage), ставит категорию (`bug` / `enhancement`) и состояние `needs-triage` или `needs-info`, оставляет комментарий. `ready-for-agent` не ставит — это решение человека; код не меняет |
+
 **Отличия от OpenCode (вариант из урока).**
 
 - `mentions` (`/opencode`, `/oc`) → `trigger_phrase: '@claude'`, команда одна.
