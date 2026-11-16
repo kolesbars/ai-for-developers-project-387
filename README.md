@@ -153,6 +153,22 @@ PostgreSQL внутри контейнера: Типы встреч и брон�
 первый запрос после этого идёт ~1 минуту). Чтобы данные сохранялись, задайте `DATABASE_URL`
 внешнего PostgreSQL в Environment сервиса.
 
+## Воркфлоу
+
+| Воркфлоу | Чем запускается | Модель | Что делает |
+|---|---|---|---|
+| [`ci`](.github/workflows/ci.yml) | `push`, `pull_request` | — | `mise run check` (контракт → SDK, lint, тесты, сборки, e2e); `e2e-pr` — Playwright на head SHA PR с trace-артефактом; сборка Docker-образа |
+| [`hexlet-check`](.github/workflows/hexlet-check.yml) | `push` | — | автопроверка Хекслета (не менять) |
+| [`release-please`](.github/workflows/release-please.yml) | `push` в `main` | — | release-PR по Conventional Commits, тег и `CHANGELOG.md` после его мержа |
+| [`claude`](.github/workflows/claude.yml) | `issue_comment`, `pull_request_review_comment` (`created`) с командой `@claude` | `claude-sonnet-5-5` | агент по команде: скиллы, ответы, правки PR; лимит 3 запуска на PR |
+| [`triage`](.github/workflows/triage.yml) | `issues` (`opened`) | `claude-sonnet-5-5` | автотриаж нового обращения |
+| [`review`](.github/workflows/review.yml) | `pull_request` | `claude-sonnet-5-5` | авторевью по [`REVIEW.md`](REVIEW.md) |
+| [`audit`](.github/workflows/audit.yml) | `schedule` (раз в сутки), `workflow_dispatch` | `claude-sonnet-5-5` | Lighthouse-аудит и issue по новым находкам |
+
+Прогоны — вкладка [Actions](https://github.com/kolesbars/ai-for-developers-project-387/actions),
+слева фильтр по воркфлоу. Модель вызывается по подписке Claude (секрет `CLAUDE_CODE_OAUTH_TOKEN`).
+Подробности агентских воркфлоу — ниже.
+
 ## Агент в GitHub
 
 Воркфлоу [`.github/workflows/claude.yml`](.github/workflows/claude.yml) запускает
@@ -297,11 +313,15 @@ Variables) и метки `audit`, `training`, `needs-triage`.
 **Лимит запусков — `claude.yml`.** В `run-name` — номер issue/PR. Первый шаг `Limit`, до
 установки инструментов и вызова action, по API Actions считает прогоны `claude.yml` с этим
 номером, у которых job `claude` не `skipped`, по всем `run_attempt` (повтор, отмена и таймаут
-тратят попытку; текущий прогон входит в счёт). Лимит — 3 на PR за всё время; для обычных issue не
+тратят попытку; текущий прогон входит в счёт). Считаются только прогоны, созданные не позже
+текущего: иначе две одновременные команды видят друг друга в очереди и отклоняются обе, хотя одна
+ещё в лимите (так случилось в PR #16). Лимит — 3 на PR за всё время; для обычных issue не
 применяется. Шаг агента имеет свой `timeout-minutes: 25` (у job — 30).
 
 Job `report` (без модели, `needs: claude`, `if: always()`, не на успех) читает шаги прогона и
-публикует в тот же issue/PR причину, head SHA, ссылку на лог и статус «нужен человек»:
+публикует в тот же issue/PR причину, head SHA, ссылку на лог и статус «нужен человек». Вызовы —
+только REST (`gh api`); причина и сбой каждого вызова пишутся аннотациями прогона, которые видны
+без входа в GitHub (лог шага — нет):
 
 | Причина | Когда |
 |---|---|

@@ -39,16 +39,19 @@ jobs:
     steps:
       # До установки инструментов и вызова модели. Лимит — 3 запуска на PR за всё время:
       # считаются прогоны claude.yml с этим номером (все run_attempt), у которых job claude
-      # не skipped; текущий прогон входит в счёт. Для обычных issue лимит не применяется.
+      # не skipped; текущий прогон входит в счёт. Только прогоны, созданные не позже текущего
+      # (id не больше): иначе две одновременные команды видят друг друга в очереди и
+      # отклоняются обе, хотя одна из них ещё в лимите. Для обычных issue лимит не применяется.
       - name: Limit
         if: github.event.issue.pull_request || github.event_name == 'pull_request_review_comment'
         env:
           GH_TOKEN: ${{ github.token }}
           TITLE: "claude #${{ github.event.issue.number || github.event.pull_request.number }}"
+          RUN_ID: ${{ github.run_id }}
         run: |
           used=0
           for run in $(gh api --paginate "repos/${{ github.repository }}/actions/workflows/claude.yml/runs?per_page=100" \
-              --jq ".workflow_runs[] | select(.display_title == \"$TITLE\") | \"\(.id):\(.run_attempt)\""); do
+              --jq ".workflow_runs[] | select(.display_title == \"$TITLE\" and .id <= $RUN_ID) | \"\(.id):\(.run_attempt)\""); do
             id=${run%%:*}; attempts=${run##*:}
             for a in $(seq 1 "$attempts"); do
               n=$(gh api "repos/${{ github.repository }}/actions/runs/$id/attempts/$a/jobs" \
@@ -112,9 +115,11 @@ jobs:
     if: always() && needs.claude.result != 'success' && needs.claude.result != 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Комментарий в PR токеном Actions требует pull-requests: write (issues: write хватает
-    # только для обычных issue); без него отчёт о причине в PR не публиковался.
+    # Комментарий в PR токеном Actions: issues/pull-requests write. Только REST (`gh api`), без
+    # `gh issue`/`gh pr`; каждый вызов при сбое пишет ::error:: — аннотации видны без входа в
+    # GitHub, а лог шага нет (так раньше и не удалось узнать, почему отчёт не публиковался).
     permissions:
+      contents: read
       issues: write
       pull-requests: write
       actions: read
@@ -124,10 +129,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           N: ${{ github.event.issue.number || github.event.pull_request.number }}
           IS_PR: ${{ github.event.issue.pull_request != null || github.event_name == 'pull_request_review_comment' }}
+          # Для комментария к строке diff head SHA есть в событии; для обычного комментария в PR — нет.
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           repo="${{ github.repository }}"
           run="${{ github.run_id }}"
-          jobs=$(gh api "repos/$repo/actions/runs/$run/attempts/${{ github.run_attempt }}/jobs")
+          fail() { echo "::error::report: $1"; exit 1; }
+          jobs=$(gh api "repos/$repo/actions/runs/$run/attempts/${{ github.run_attempt }}/jobs") \
+            || fail "не удалось прочитать шаги прогона (actions: read)"
           step() { echo "$jobs" | jq -r --arg n "$1" '.jobs[] | select(.name=="claude") | .steps[] | select(.name==$n) | .conclusion // "none"'; }
           limit=$(step Limit); agent=$(step Agent)
           if [ "$limit" = failure ]; then reason=limit_exhausted
@@ -135,13 +144,18 @@ jobs:
           elif [ "$agent" = failure ]; then reason=agent_failed
           elif echo "$jobs" | jq -e '.jobs[] | select(.name=="claude") | .steps[] | select(.conclusion=="failure")' >/dev/null; then reason=infra
           else reason="причина не определена, смотрите лог"; fi
-          sha=${{ github.sha }}
-          if [ "$IS_PR" = true ]; then sha=$(gh pr view "$N" --repo "$repo" --json headRefOid --jq .headRefOid); fi
-          # Причина остаётся в логе, даже если публикация комментария не удастся.
-          echo "Причина: $reason, head SHA: $sha"
-          gh issue comment "$N" --repo "$repo" --body "### Агент не завершил работу
-
-          - Причина: \`$reason\`
-          - Head SHA: \`$sha\`
-          - Лог: https://github.com/$repo/actions/runs/$run
-          - Статус: нужен человек"
+          sha="${{ github.sha }}"
+          if [ -n "$EVENT_HEAD_SHA" ]; then sha=$EVENT_HEAD_SHA
+          elif [ "$IS_PR" = true ]; then
+            sha=$(gh api "repos/$repo/pulls/$N" --jq .head.sha) || fail "не удалось получить head SHA PR #$N"
+          fi
+          # Причина остаётся в аннотации прогона, даже если публикация комментария не удастся.
+          echo "::notice::Причина: $reason, head SHA: $sha"
+          printf '%s\n' "### Агент не завершил работу" "" \
+            "- Причина: \`$reason\`" \
+            "- Head SHA: \`$sha\`" \
+            "- Лог: https://github.com/$repo/actions/runs/$run" \
+            "- Статус: нужен человек" > body.md
+          # REST-эндпоинт комментариев issue работает и для PR (PR — это issue).
+          gh api "repos/$repo/issues/$N/comments" -F body=@body.md --jq .html_url \
+            || fail "не удалось опубликовать комментарий в #$N"
