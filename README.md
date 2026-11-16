@@ -172,8 +172,10 @@ PostgreSQL внутри контейнера: Типы встреч и брон�
 агенту хранится в репозитории и приходит с checkout: скиллы первого проекта —
 `.agents/skills` (подключены в `.claude/skills`), правила — `AGENTS.md` (через `CLAUDE.md`),
 трекер и метки — `docs/agents/`. Глобально установленные скиллы не используются. mise ставит те же
-JDK и Node, что в CI, — агент может прогнать `mise run check`. Issues читает `gh` с токеном
-задания (только чтение).
+JDK и Node, что в CI, — агент может прогнать `mise run check`. С issues агент работает через `gh`
+с токеном задания: читает, создаёт спецификацию и тикеты (`to-spec`, `to-tickets`), комментирует,
+ставит метки и связи; недостающие метки из `docs/agents/triage-labels.md` создаёт сам.
+Тикеты, созданные этим токеном, не запускают другие воркфлоу — так GitHub защищает от циклов.
 
 Скиллы, помеченные `disable-model-invocation` (`to-spec`, `to-tickets`, `implement-spec` и др.),
 вызываются только слэш-командой человека, а в комментарии GitHub слэш-команд нет. Поэтому, как и в
@@ -183,8 +185,10 @@ OpenCode, название скилла передаётся текстом ко
 
 **Авторизация и права.** Стандартный режим GitHub App: установлено приложение
 [Claude](https://github.com/apps/claude), action получает его токен по OIDC (`id-token: write`)
-и пишет правами приложения. Токен задания — только чтение (`contents`, `issues`,
-`pull-requests`, `actions`), у `actions/checkout` — `persist-credentials: false`.
+и пишет правами приложения (комментарий-ответ, ветки, коммиты). Токен задания — `contents`,
+`pull-requests`, `actions` только на чтение и `issues: write` для операций трекера (`gh issue`,
+`gh label`; список разрешённых команд — `--allowedTools`); у `actions/checkout` —
+`persist-credentials: false`.
 Ключ модели — секрет `CLAUDE_CODE_OAUTH_TOKEN` (подписка Claude, токен из `claude setup-token`)
 в Settings → Secrets and variables → Actions; в репозитории ключей нет.
 `pull_request_target` не используется, а комментарий из чужого fork не проходит проверку автора —
