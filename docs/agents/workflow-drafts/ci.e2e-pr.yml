@@ -1,0 +1,44 @@
+# Job для добавления в .github/workflows/ci.yml (в jobs:, рядом с check).
+  e2e-pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: jdx/mise-action@v5
+        with:
+          install: true
+          cache: true
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Install dependencies
+        run: mise run install
+
+      - name: Record SHA
+        run: git rev-parse HEAD > sha.txt
+
+      - name: Build
+        run: mise run build
+
+      # PW_TRACE=on включает trace для каждого теста (см. e2e/playwright.config.ts).
+      - name: Playwright with trace
+        run: |
+          set +e
+          PW_TRACE=on npm run test --workspace e2e
+          code=$?
+          if [ "$code" = 0 ]; then echo passed > e2e-result.txt; else echo failed > e2e-result.txt; fi
+          exit "$code"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-${{ github.event.pull_request.head.sha }}
+          path: |
+            sha.txt
+            e2e-result.txt
+            e2e/playwright-report
+            e2e/test-results
+          if-no-files-found: warn

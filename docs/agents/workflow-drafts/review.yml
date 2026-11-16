@@ -1,0 +1,119 @@
+# Авторевью pull request: модель только читает и пишет review.md, комментарий публикует
+# отдельный job без модели. Описание — README.md, раздел «Агент в GitHub».
+name: review
+
+on:
+  # Не pull_request_target: код PR не получает права записи и секреты чужих веток.
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Только ветки этого репозитория, доверенные авторы (в том числе claude[bot]),
+    # не черновики и не PR release-please.
+    if: |
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.event.pull_request.head.ref, 'release-please--') &&
+      (
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) ||
+        github.event.pull_request.user.login == 'claude[bot]'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      actions: read
+      checks: read
+      statuses: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Secret is set (infra)
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "::error::infra: секрет CLAUDE_CODE_OAUTH_TOKEN не задан"
+            exit 1
+          fi
+
+      - name: Install Claude Code CLI
+        run: npm i -g @anthropic-ai/claude-code@2.1.325
+
+      # Без модели: всё, что нужно ревьюеру, собирается в файлы.
+      - name: Collect context
+        run: |
+          mkdir -p ctx
+          gh pr view "$PR" --json title,body,author,baseRefName,headRefName,headRefOid > ctx/pr.json
+          gh pr view "$PR" --json body --jq .body > ctx/pr-body.md
+          gh pr diff "$PR" > ctx/pr.diff
+          gh pr checks "$PR" > ctx/checks.txt || true
+          # Тикеты по ссылкам и #N из описания PR (только этого репозитория).
+          grep -oE '(github\.com/${{ github.repository }}/issues/|#)[0-9]+' ctx/pr-body.md \
+            | grep -oE '[0-9]+$' | sort -un | head -10 | while read -r n; do
+              gh issue view "$n" --comments > "ctx/issue-$n.md" || true
+            done
+          ls ctx
+
+      - name: Review (model)
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          {
+            echo "Ты ревьюер pull request. Head SHA: $HEAD_SHA."
+            echo "Следуй критериям ниже. Сверь PR со спецификацией (docs/spec.md) и согласованием"
+            echo "по ссылкам из описания; если ссылок нет или изменение выходит за объём — скажи."
+            echo "Материалы: ctx/pr.json, ctx/pr-body.md, ctx/pr.diff, ctx/checks.txt, ctx/issue-*.md."
+            echo "Ответ — только текст ревью на русском, без правок файлов."
+            echo
+            cat REVIEW.md
+          } > prompt.md
+          claude -p "$(cat prompt.md)" \
+            --model claude-sonnet-5-5 \
+            --max-turns 30 \
+            --allowedTools "Read,Grep,Glob,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh issue view:*),Bash(gh run view:*),Bash(gh run list:*)" \
+            > review.md
+          test -s review.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-${{ github.event.pull_request.number }}
+          path: review.md
+
+  publish:
+    needs: review
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: review-${{ github.event.pull_request.number }}
+      # Без модели: текст ревью публикуется как есть, с SHA, к которому он относится.
+      - name: Publish review
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "### Авторевью (SHA \`${{ github.event.pull_request.head.sha }}\`)"
+            echo
+            cat review.md
+          } > comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" --body-file comment.md
