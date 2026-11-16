@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/kolesbars/ai-for-developers-project-387/compare/v1.2.0...v1.2.1) (2026-11-16)
+
+
+### Документация
+
+* факты прогонов аудита в README ([#20](https://github.com/kolesbars/ai-for-developers-project-387/issues/20)) ([a2877c1](https://github.com/kolesbars/ai-for-developers-project-387/commit/a2877c136796b9152f052f6906f316c794468755))
+* факты прогонов аудита в README ([#20](https://github.com/kolesbars/ai-for-developers-project-387/issues/20)) ([da4efa2](https://github.com/kolesbars/ai-for-developers-project-387/commit/da4efa2cffc426277935a4e7ed2222bbee5cfe24))
+
 ## [1.2.0](https://github.com/kolesbars/ai-for-developers-project-387/compare/v1.1.2...v1.2.0) (2026-11-16)
 
 
