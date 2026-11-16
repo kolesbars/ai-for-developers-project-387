@@ -1,6 +1,8 @@
 # Агент Claude Code в GitHub: отвечает на команду @claude в issue и pull request.
 # Описание, модель и решения по безопасности — README.md, раздел «Агент в GitHub».
 name: claude
+# Номер issue/PR в названии прогона — по нему считается лимит запусков.
+run-name: "claude #${{ github.event.issue.number || github.event.pull_request.number }}"
 
 on:
   # Обсуждение issue или pull request.
@@ -35,6 +37,37 @@ jobs:
       actions: read
       id-token: write
     steps:
+      # До установки инструментов и вызова модели. Лимит — 3 запуска на PR за всё время:
+      # считаются прогоны claude.yml с этим номером (все run_attempt), у которых job claude
+      # не skipped; текущий прогон входит в счёт. Для обычных issue лимит не применяется.
+      - name: Limit
+        if: github.event.issue.pull_request || github.event_name == 'pull_request_review_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: "claude #${{ github.event.issue.number || github.event.pull_request.number }}"
+        run: |
+          used=0
+          for run in $(gh api --paginate "repos/${{ github.repository }}/actions/workflows/claude.yml/runs?per_page=100" \
+              --jq ".workflow_runs[] | select(.display_title == \"$TITLE\") | \"\(.id):\(.run_attempt)\""); do
+            id=${run%%:*}; attempts=${run##*:}
+            for a in $(seq 1 "$attempts"); do
+              n=$(gh api "repos/${{ github.repository }}/actions/runs/$id/attempts/$a/jobs" \
+                --jq '[.jobs[] | select(.name == "claude" and .conclusion != "skipped")] | length')
+              used=$((used + n))
+            done
+          done
+          echo "Запусков на этом PR: $used из 3"
+          if [ "$used" -gt 3 ]; then
+            echo "::error::limit_exhausted: лимит 3 запуска на PR исчерпан"
+            exit 1
+          fi
+
+      - name: Secret is set (infra)
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || { echo "::error::infra: нет секрета"; exit 1; }
+
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
@@ -57,7 +90,9 @@ jobs:
       # трекер — docs/agents/. Всё приходит с checkout, глобальная установка не нужна.
       # Скиллы с disable-model-invocation (вызываются только слэш-командой, которой в комментарии
       # нет) агент выполняет по названию из команды — см. --append-system-prompt.
-      - uses: anthropics/claude-code-action@v1
+      - name: Agent
+        timeout-minutes: 25
+        uses: anthropics/claude-code-action@v1
         env:
           # gh для работы с issues по docs/agents/issue-tracker.md: токен задания —
           # запись только в issues и метки, код и PR — на чтение.
@@ -70,3 +105,39 @@ jobs:
             --max-turns 60
             --allowedTools "Skill,Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh label create:*),Bash(gh repo view:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh api:*),Bash(mise run:*),Bash(mise tasks:*),Bash(npm run:*),Bash(./gradlew:*)"
             --append-system-prompt "Скиллы проекта лежат в .agents/skills/<имя>/SKILL.md. Часть из них (to-spec, to-tickets, implement-spec и др.) помечена disable-model-invocation и недоступна через инструмент Skill. Если в команде назван скилл, прочитай его SKILL.md (и файлы, на которые он ссылается) и выполни инструкции так, будто пользователь вызвал его слэш-командой. Трекер — docs/agents/issue-tracker.md, вопросы и решения пиши в обсуждение issue. Метки — docs/agents/triage-labels.md; если нужной метки в репозитории нет, создай её через gh label create."
+
+  # Без модели: объясняет, почему агент не отработал, и просит человека.
+  report:
+    needs: claude
+    if: always() && needs.claude.result != 'success' && needs.claude.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      pull-requests: read
+      actions: read
+    steps:
+      - name: Report reason
+        env:
+          GH_TOKEN: ${{ github.token }}
+          N: ${{ github.event.issue.number || github.event.pull_request.number }}
+          IS_PR: ${{ github.event.issue.pull_request != null || github.event_name == 'pull_request_review_comment' }}
+        run: |
+          repo="${{ github.repository }}"
+          run="${{ github.run_id }}"
+          jobs=$(gh api "repos/$repo/actions/runs/$run/attempts/${{ github.run_attempt }}/jobs")
+          step() { echo "$jobs" | jq -r --arg n "$1" '.jobs[] | select(.name=="claude") | .steps[] | select(.name==$n) | .conclusion // "none"'; }
+          limit=$(step Limit); agent=$(step Agent)
+          if [ "$limit" = failure ]; then reason=limit_exhausted
+          elif [ "$agent" = cancelled ]; then reason=timeout
+          elif [ "$agent" = failure ]; then reason=agent_failed
+          elif echo "$jobs" | jq -e '.jobs[] | select(.name=="claude") | .steps[] | select(.conclusion=="failure")' >/dev/null; then reason=infra
+          else reason="причина не определена, смотрите лог"; fi
+          sha=${{ github.sha }}
+          if [ "$IS_PR" = true ]; then sha=$(gh pr view "$N" --repo "$repo" --json headRefOid --jq .headRefOid); fi
+          gh issue comment "$N" --repo "$repo" --body "### Агент не завершил работу
+
+          - Причина: \`$reason\`
+          - Head SHA: \`$sha\`
+          - Лог: https://github.com/$repo/actions/runs/$run
+          - Статус: нужен человек"

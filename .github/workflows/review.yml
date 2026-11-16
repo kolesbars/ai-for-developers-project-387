@@ -34,6 +34,7 @@ jobs:
       statuses: read
     env:
       GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
       PR: ${{ github.event.pull_request.number }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
@@ -76,8 +77,10 @@ jobs:
         run: |
           {
             echo "Ты ревьюер pull request. Head SHA: $HEAD_SHA."
-            echo "Следуй критериям ниже. Сверь PR со спецификацией (docs/spec.md) и согласованием"
-            echo "по ссылкам из описания; если ссылок нет или изменение выходит за объём — скажи."
+            echo "Следуй критериям ниже. Сверь PR со спецификацией и тикетами в GitHub Issues"
+            echo "(ctx/issue-*.md, по ссылкам из описания) и с согласованием человеком в их обсуждении;"
+            echo "docs/spec.md — спецификация первого проекта, не источник требований этого PR."
+            echo "Если ссылок нет, они недоступны или изменение выходит за согласованный объём — скажи."
             echo "Материалы: ctx/pr.json, ctx/pr-body.md, ctx/pr.diff, ctx/checks.txt, ctx/issue-*.md."
             echo "Ответ — только текст ревью на русском, без правок файлов."
             echo

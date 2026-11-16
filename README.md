@@ -218,42 +218,8 @@ OpenCode, название скилла передаётся текстом ко
 - `model: <провайдер>/<модель>` → `--model` в `claude_args`; провайдер один — Anthropic, оплата
   по подписке, без отдельного бюджета.
 
-## MCP для агента
-
-В `.mcp.json` — проектная конфигурация MCP для Claude Code (секретов в файле нет):
-
-- `render` — [Render MCP](https://render.com/docs/mcp-server): статус деплоев, логи, переменные
-  сервиса. Ключ берётся из переменной окружения: создайте API key в Render (Account Settings →
-  API Keys) и перед запуском `claude` выполните `export RENDER_API_KEY=…`. Ключ не коммитьте.
-- `playwright` — [Playwright MCP](https://github.com/microsoft/playwright-mcp): агент проходит
-  сценарий Гостя и Владельца в браузере по публичной ссылке. Ключей не нужно.
-
-При первом запуске Claude Code спросит, доверять ли серверам из `.mcp.json`.
-
-## Коммиты
-
-[Conventional Commits](https://www.conventionalcommits.org/ru/): `feat`, `fix`, `docs`, `chore`,
-`ci`, `test`, `refactor`, `!` для breaking changes; необязательная область — `api`, `backend`,
-`frontend`, `e2e`. Например: `feat(frontend): страница записи`.
-
----
-
-<details>
-<summary>Автоматические тесты Хекслета</summary>
-
-Тесты запускаются на каждый коммит. За запуск отвечает файл `.github/workflows/hexlet-check.yml` — не удаляйте и не переименовывайте ни его, ни репозиторий.
-
-</details>
-
-## О Хекслете
-
-[Хекслет](https://ru.hexlet.io/) — школа программирования: авторские программы обучения с практикой, поддержкой наставников и реальными проектами, которые остаются в резюме. Этот репозиторий — один из таких проектов.
-
 ### Авторевью, лимит запусков и e2e-артефакт
 
-> Воркфлоу из этого раздела лежат черновиками в
-> [`docs/agents/workflow-drafts/`](docs/agents/workflow-drafts): приложение Claude не может
-> менять `.github/workflows`. Перенос — вручную, см. «Подключение» ниже.
 
 **Авторевью — `review.yml`.** Запускается на `pull_request`
 (`opened`, `synchronize`, `reopened`, `ready_for_review`), не на `pull_request_target`.
@@ -299,11 +265,36 @@ Playwright с `PW_TRACE=on` (в `playwright.config.ts` `trace: 'on'`; без п�
 `retain-on-failure`). Артефакт `e2e-<sha>` (всегда, `if: always()`): `sha.txt`, `e2e-result.txt`
 (`passed`/`failed`), trace и HTML-отчёт. SHA в имени артефакта должен совпадать с head PR.
 
-**Подключение.** Из корня репозитория, с правами на workflows:
+Файлы в `.github/workflows/` приложение Claude менять не может (нет права `workflows`):
+правки воркфлоу вносит и пушит человек.
 
-```bash
-cp docs/agents/workflow-drafts/review.yml .github/workflows/review.yml
-cp docs/agents/workflow-drafts/claude.yml .github/workflows/claude.yml
-# содержимое ci.e2e-pr.yml (без первой строки-комментария) — в jobs: файла ci.yml
-```
-После этого черновики можно удалить.
+## MCP для агента
+
+В `.mcp.json` — проектная конфигурация MCP для Claude Code (секретов в файле нет):
+
+- `render` — [Render MCP](https://render.com/docs/mcp-server): статус деплоев, логи, переменные
+  сервиса. Ключ берётся из переменной окружения: создайте API key в Render (Account Settings →
+  API Keys) и перед запуском `claude` выполните `export RENDER_API_KEY=…`. Ключ не коммитьте.
+- `playwright` — [Playwright MCP](https://github.com/microsoft/playwright-mcp): агент проходит
+  сценарий Гостя и Владельца в браузере по публичной ссылке. Ключей не нужно.
+
+При первом запуске Claude Code спросит, доверять ли серверам из `.mcp.json`.
+
+## Коммиты
+
+[Conventional Commits](https://www.conventionalcommits.org/ru/): `feat`, `fix`, `docs`, `chore`,
+`ci`, `test`, `refactor`, `!` для breaking changes; необязательная область — `api`, `backend`,
+`frontend`, `e2e`. Например: `feat(frontend): страница записи`.
+
+---
+
+<details>
+<summary>Автоматические тесты Хекслета</summary>
+
+Тесты запускаются на каждый коммит. За запуск отвечает файл `.github/workflows/hexlet-check.yml` — не удаляйте и не переименовывайте ни его, ни репозиторий.
+
+</details>
+
+## О Хекслете
+
+[Хекслет](https://ru.hexlet.io/) — школа программирования: авторские программы обучения с практикой, поддержкой наставников и реальными проектами, которые остаются в резюме. Этот репозиторий — один из таких проектов.
