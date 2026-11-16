@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/kolesbars/ai-for-developers-project-387/compare/v1.1.2...v1.2.0) (2026-11-16)
+
+
+### Новое
+
+* минимальный запас 1 час до начала встречи ([d8da865](https://github.com/kolesbars/ai-for-developers-project-387/commit/d8da86517b10a8bbf6ed8122f753c898e25e751e))
+
+
+### Исправления
+
+* **ci:** отчёт о сбое агента публикуется и в pull request ([5a4eb3b](https://github.com/kolesbars/ai-for-developers-project-387/commit/5a4eb3bdebbb33732f98160b0c0fcd566a45c7a5))
+
 ## [1.1.2](https://github.com/kolesbars/ai-for-developers-project-387/compare/v1.1.1...v1.1.2) (2026-11-16)
 
 
