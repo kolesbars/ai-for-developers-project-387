@@ -248,3 +248,62 @@ OpenCode, название скилла передаётся текстом ко
 ## О Хекслете
 
 [Хекслет](https://ru.hexlet.io/) — школа программирования: авторские программы обучения с практикой, поддержкой наставников и реальными проектами, которые остаются в резюме. Этот репозиторий — один из таких проектов.
+
+### Авторевью, лимит запусков и e2e-артефакт
+
+> Воркфлоу из этого раздела лежат черновиками в
+> [`docs/agents/workflow-drafts/`](docs/agents/workflow-drafts): приложение Claude не может
+> менять `.github/workflows`. Перенос — вручную, см. «Подключение» ниже.
+
+**Авторевью — `review.yml`.** Запускается на `pull_request`
+(`opened`, `synchronize`, `reopened`, `ready_for_review`), не на `pull_request_target`.
+Условия: ветка этого репозитория (`head.repo.full_name == github.repository`), автор —
+`OWNER`/`MEMBER`/`COLLABORATOR` или `claude[bot]`, не черновик, ветка не `release-please--*`.
+`concurrency: review-<номер PR>` с `cancel-in-progress: true`, `timeout-minutes: 20`.
+
+- Job `review` (права `contents`, `issues`, `pull-requests`, `actions`, `checks`, `statuses` —
+  только чтение). Шаг без модели собирает в `ctx/` описание PR, diff, статусы CI и тексты тикетов
+  по ссылкам из описания. Затем обычный CLI `claude -p` (версия закреплена, токен —
+  `CLAUDE_CODE_OAUTH_TOKEN`) с `--allowedTools "Read,Grep,Glob"` и `gh pr view/diff/checks`,
+  `gh issue view`, `gh run view/list`; Bash целиком и `gh api` не разрешены. Промпт включает
+  [`REVIEW.md`](REVIEW.md) и требует сверить PR со спецификацией и согласованием.
+  Результат — `review.md`, передаётся артефактом.
+- Job `publish` (без модели, `needs: review`, `pull-requests: write`) публикует его через
+  `gh pr comment --body-file`, указывая SHA, к которому относится ревью.
+- Нет секрета — шаг падает с причиной `infra` до вызова модели.
+
+**Шаблон PR** — [`.github/pull_request_template.md`](.github/pull_request_template.md): исходное
+обращение, спецификация, тикеты, согласование; проверки (команды, ссылки на прогоны, SHA,
+чекбоксы); риск; откат.
+
+**Лимит запусков — `claude.yml`.** В `run-name` — номер issue/PR. Первый шаг `Limit`, до
+установки инструментов и вызова action, по API Actions считает прогоны `claude.yml` с этим
+номером, у которых job `claude` не `skipped`, по всем `run_attempt` (повтор, отмена и таймаут
+тратят попытку; текущий прогон входит в счёт). Лимит — 3 на PR за всё время; для обычных issue не
+применяется. Шаг агента имеет свой `timeout-minutes: 25` (у job — 30).
+
+Job `report` (без модели, `needs: claude`, `if: always()`, не на успех) читает шаги прогона и
+публикует в тот же issue/PR причину, head SHA, ссылку на лог и статус «нужен человек»:
+
+| Причина | Когда |
+|---|---|
+| `limit_exhausted` | шаг `Limit` упал |
+| `infra` | упал шаг до агента (checkout, mise, install, нет секрета) |
+| `timeout` | шаг `Agent` отменён по своему таймауту |
+| `agent_failed` | шаг `Agent` завершился `failure` |
+| иначе | «причина не определена, смотрите лог» |
+
+**e2e для PR — job `e2e-pr` в `ci.yml`** (в дополнение к `check`, только `pull_request`):
+checkout `ref: ${{ github.event.pull_request.head.sha }}`, `git rev-parse HEAD > sha.txt`, сборка,
+Playwright с `PW_TRACE=on` (в `playwright.config.ts` `trace: 'on'`; без переменной остаётся
+`retain-on-failure`). Артефакт `e2e-<sha>` (всегда, `if: always()`): `sha.txt`, `e2e-result.txt`
+(`passed`/`failed`), trace и HTML-отчёт. SHA в имени артефакта должен совпадать с head PR.
+
+**Подключение.** Из корня репозитория, с правами на workflows:
+
+```bash
+cp docs/agents/workflow-drafts/review.yml .github/workflows/review.yml
+cp docs/agents/workflow-drafts/claude.yml .github/workflows/claude.yml
+# содержимое ci.e2e-pr.yml (без первой строки-комментария) — в jobs: файла ci.yml
+```
+После этого черновики можно удалить.
