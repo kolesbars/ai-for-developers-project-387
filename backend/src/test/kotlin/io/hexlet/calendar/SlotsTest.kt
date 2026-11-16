@@ -97,17 +97,31 @@ class SlotsTest {
         }
 
     @Test
-    fun `сегодня — только старты позже текущего момента`() =
+    fun `сегодня — только старты не раньше now + 1 час`() =
         apiTest(clock = fixedClock(Instant.parse("2026-11-12T05:10:00Z"))) {
-            // 10:10 → первый старт 10:30
-            assertEquals("2026-11-12T05:30:00Z", slotsOf("hour", 60).first().startAt())
+            // 10:10 → первый старт 11:30 (11:00 раньше 11:10)
+            assertEquals("2026-11-12T06:30:00Z", slotsOf("hour", 60).first().startAt())
         }
 
     @Test
-    fun `старт ровно в текущий момент уже не возвращается`() =
+    fun `запас 1 час — граница включительная, 10-00 → первый старт 11-00`() =
         apiTest(clock = fixedClock(Instant.parse("2026-11-12T05:00:00Z"))) {
-            // 10:00 → первый старт 10:30
-            assertEquals("2026-11-12T05:30:00Z", slotsOf("hour", 60).first().startAt())
+            // слот 10:30 (now + 30 мин) недоступен, 11:00 (now + 1 час) доступен
+            assertEquals("2026-11-12T06:00:00Z", slotsOf("hour", 60).first().startAt())
+        }
+
+    @Test
+    fun `запас 1 час — за минуту до границы слот 11-00 ещё не доступен`() =
+        apiTest(clock = fixedClock(Instant.parse("2026-11-12T05:01:00Z"))) {
+            // 10:01 → 11:00 раньше now + 1 час, первый старт 11:30
+            assertEquals("2026-11-12T06:30:00Z", slotsOf("hour", 60).first().startAt())
+        }
+
+    @Test
+    fun `вечером в пятницу первым доступным становится понедельник 09-00`() =
+        apiTest(clock = fixedClock(Instant.parse("2026-11-13T11:30:00Z"))) {
+            // пт 16:30: 17:00 раньше now + 1 час, дальше выходные
+            assertEquals("2026-11-16T04:00:00Z", slotsOf("hour", 60).first().startAt())
         }
 
     @Test

@@ -81,6 +81,53 @@ test('POST /api/bookings — 422 slot_unavailable для старта в про�
   expect(await response.json()).toMatchObject({ code: 'slot_unavailable' })
 })
 
+const LEAD_MS = 60 * 60 * 1000
+
+test('слоты и бронирование соблюдают запас 1 час: ни один Слот не ближе now + 1 час', async ({ request }) => {
+  const meetingType = await createMeetingType(request, {
+    id: uniqueId('lead'),
+    name: 'Запас',
+    durationMinutes: 30,
+  })
+
+  const before = Date.now()
+  const slots: { startAt: string; status: string }[] = await (
+    await request.get(`/api/meeting-types/${meetingType.id}/slots`)
+  ).json()
+
+  expect(slots.length).toBeGreaterThan(0)
+  // Серверное «сейчас» не раньше `before` (часы одной машины), поэтому границу берём с запасом 1 минуты.
+  for (const slot of slots) {
+    expect(Date.parse(slot.startAt)).toBeGreaterThanOrEqual(before + LEAD_MS - 60_000)
+  }
+})
+
+test('POST /api/bookings — 422 slot_unavailable для старта ближе чем через 1 час', async ({ request }) => {
+  const meetingType = await createMeetingType(request, {
+    id: uniqueId('lead-neg'),
+    name: 'Запас',
+    durationMinutes: 30,
+  })
+
+  // Любые старты ближе часа: либо внутри запаса, либо вне сетки/Рабочих часов — отказ один и тот же.
+  const now = Date.now()
+  for (const offsetMinutes of [0, 15, 30, 45]) {
+    const response = await request.post('/api/bookings', {
+      data: { meetingTypeId: meetingType.id, startAt: new Date(now + offsetMinutes * 60_000).toISOString(), ...guest },
+    })
+    expect(response.status(), `+${offsetMinutes} мин`).toBe(422)
+    expect(await response.json()).toMatchObject({ code: 'slot_unavailable' })
+  }
+
+  // Первый доступный Слот — за пределами запаса — принимается (основной сценарий).
+  const slots: { startAt: string; status: string }[] = await (
+    await request.get(`/api/meeting-types/${meetingType.id}/slots`)
+  ).json()
+  expect(slots.some((slot) => slot.status === 'available')).toBe(true)
+  const { response } = await bookFreeStart(request, meetingType.id)
+  expect(response.status()).toBe(201)
+})
+
 test('GET /api/bookings — новое Бронирование среди Предстоящих, по возрастанию startAt', async ({ request }) => {
   const meetingType = await createMeetingType(request, {
     id: uniqueId('upcoming'),

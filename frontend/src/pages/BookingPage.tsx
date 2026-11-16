@@ -15,7 +15,7 @@ const SUBMIT_FAILED = 'Не удалось записаться. Попробу�
 /** Сообщения над списком времени после конфликта при записи (spec §7). */
 const CONFLICTS: Record<string, string> = {
   slot_taken: 'Это время только что заняли. Выберите другое — ниже актуальное расписание',
-  slot_unavailable: 'Это время больше недоступно',
+  slot_unavailable: 'Это время больше недоступно. Записаться можно не позже чем за 1 час до начала встречи',
 }
 
 type Schedule = { state: 'loading' } | { state: 'error' } | { state: 'ready'; slots: Slot[] }
