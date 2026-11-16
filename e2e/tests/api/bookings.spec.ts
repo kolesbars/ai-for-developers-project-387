@@ -102,24 +102,14 @@ test('слоты и бронирование соблюдают запас 1 ч�
   }
 })
 
-test('POST /api/bookings — 422 slot_unavailable для старта ближе чем через 1 час', async ({ request }) => {
+// Отказ для старта внутри запаса проверяет backend-тест с фиксированным Clock
+// (BookingsTest: «запас 1 час …»): на реальном «сейчас» старт сетки внутри (now, now+1ч) детерминированно не построить.
+test('POST /api/bookings — первый доступный Слот (за пределами запаса) принимается', async ({ request }) => {
   const meetingType = await createMeetingType(request, {
-    id: uniqueId('lead-neg'),
+    id: uniqueId('lead-pos'),
     name: 'Запас',
     durationMinutes: 30,
   })
-
-  // Любые старты ближе часа: либо внутри запаса, либо вне сетки/Рабочих часов — отказ один и тот же.
-  const now = Date.now()
-  for (const offsetMinutes of [0, 15, 30, 45]) {
-    const response = await request.post('/api/bookings', {
-      data: { meetingTypeId: meetingType.id, startAt: new Date(now + offsetMinutes * 60_000).toISOString(), ...guest },
-    })
-    expect(response.status(), `+${offsetMinutes} мин`).toBe(422)
-    expect(await response.json()).toMatchObject({ code: 'slot_unavailable' })
-  }
-
-  // Первый доступный Слот — за пределами запаса — принимается (основной сценарий).
   const slots: { startAt: string; status: string }[] = await (
     await request.get(`/api/meeting-types/${meetingType.id}/slots`)
   ).json()

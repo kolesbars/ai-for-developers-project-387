@@ -205,10 +205,27 @@ describe('страница записи: занятое время и недос
     ).toBeInTheDocument()
   })
 
-  it('если из-за запаса Слотов не осталось, показывает пояснение, а не пустое место', async () => {
+  it('когда все Слоты заняты, не объясняет это запасом: «Нет свободного времени» и подсказка о запасе', async () => {
+    openBookingPage([
+      slot('2026-11-12T04:00:00Z', 'busy'),
+      slot('2026-11-12T04:30:00Z', 'busy'),
+      slot('2026-11-13T04:00:00Z', 'busy'),
+    ])
+
+    const panel = await times()
+    expect(panel.getByRole('heading', { name: 'Нет свободного времени' })).toBeInTheDocument()
+    expect(
+      panel.getByText('Записаться можно не позже чем за 1 час до начала встречи.'),
+    ).toBeInTheDocument()
+    expect(panel.queryByText(/недоступно из-за запаса/)).not.toBeInTheDocument()
+  })
+
+  it('пустое Окно: «Нет свободного времени» без утверждения про запас', async () => {
     openBookingPage([])
 
-    expect((await times()).getByText(/недоступно из-за запаса в 1 час/)).toBeInTheDocument()
+    const panel = await times()
+    expect(panel.getByRole('heading', { name: 'Нет свободного времени' })).toBeInTheDocument()
+    expect(panel.queryByText(/недоступно из-за запаса/)).not.toBeInTheDocument()
   })
 })
 
