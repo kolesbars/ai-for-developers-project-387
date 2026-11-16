@@ -1,0 +1,98 @@
+import { screen, within } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+import { mockApi } from './test/api'
+import { renderAt } from './test/render'
+
+const consultation = {
+  id: 'consultation',
+  name: 'Консультация',
+  description: 'Подробный разбор вашего вопроса.',
+  durationMinutes: 60,
+}
+const intro = { id: 'intro', name: 'Знакомство', durationMinutes: 15 }
+
+describe('главная страница', () => {
+  it('показывает приветствие', async () => {
+    mockApi({ 'GET /api/meeting-types': { body: [] } })
+    renderAt('/')
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Календарь звонков' })).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Здравствуйте! Здесь можно записаться на звонок с владельцем: выберите тип встречи, удобный день и время. Регистрация не нужна.',
+      ),
+    ).toBeInTheDocument()
+    await screen.findByText('Пока нет доступных типов встреч.')
+  })
+
+  it('показывает Типы встреч из API со ссылками на запись', async () => {
+    mockApi({ 'GET /api/meeting-types': { body: [consultation, intro] } })
+    renderAt('/')
+
+    const cards = await screen.findAllByRole('article')
+    expect(cards).toHaveLength(2)
+
+    const first = within(cards[0])
+    expect(first.getByRole('heading', { name: 'Консультация' })).toBeInTheDocument()
+    expect(first.getByText('Подробный разбор вашего вопроса.')).toBeInTheDocument()
+    expect(first.getByText('60 мин')).toBeInTheDocument()
+    expect(first.getByRole('link', { name: 'Выбрать время' })).toHaveAttribute(
+      'href',
+      '/book/consultation',
+    )
+
+    const second = within(cards[1])
+    expect(second.getByRole('heading', { name: 'Знакомство' })).toBeInTheDocument()
+    expect(second.getByText('15 мин')).toBeInTheDocument()
+    expect(second.getByRole('link', { name: 'Выбрать время' })).toHaveAttribute('href', '/book/intro')
+  })
+
+  it('сообщает, что Типов встреч пока нет', async () => {
+    mockApi({ 'GET /api/meeting-types': { body: [] } })
+    renderAt('/')
+
+    expect(await screen.findByText('Пока нет доступных типов встреч.')).toBeInTheDocument()
+    expect(screen.queryAllByRole('article')).toHaveLength(0)
+  })
+
+  it('сообщает об ошибке загрузки', async () => {
+    mockApi({ 'GET /api/meeting-types': { status: 500, body: { code: 'oops', message: 'oops' } } })
+    renderAt('/')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить типы встреч')
+  })
+})
+
+const owner = { name: 'Анна Смирнова', bio: 'Консультации по Kotlin', timeZone: 'Asia/Almaty' }
+
+describe('блок Владельца на главной', () => {
+  it('показывает Владельца из API: инициалы, имя и описание', async () => {
+    mockApi({ 'GET /api/owner': { body: owner }, 'GET /api/meeting-types': { body: [] } })
+    renderAt('/')
+
+    const section = within(await screen.findByRole('region', { name: 'Владелец' }))
+    expect(await section.findByRole('heading', { level: 2, name: 'Анна Смирнова' })).toBeInTheDocument()
+    expect(section.getByText('Консультации по Kotlin')).toBeInTheDocument()
+    expect(section.getByText('АС')).toBeInTheDocument()
+  })
+
+  it('без профиля Владельца каталог всё равно показывается', async () => {
+    mockApi({
+      'GET /api/owner': { status: 500, body: { code: 'oops', message: 'oops' } },
+      'GET /api/meeting-types': { body: [intro] },
+    })
+    renderAt('/')
+
+    expect(await screen.findAllByRole('article')).toHaveLength(1)
+    expect(screen.queryByRole('region', { name: 'Владелец' })).not.toBeInTheDocument()
+  })
+})
+
+describe('неизвестный адрес', () => {
+  it('показывает страницу «не найдена» со ссылкой на главную', () => {
+    renderAt('/nope')
+
+    expect(screen.getByRole('heading', { name: 'Страница не найдена' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'На главную' })).toHaveAttribute('href', '/')
+  })
+})

@@ -1,0 +1,81 @@
+package io.hexlet.calendar
+
+import io.hexlet.calendar.bookings.BookingRepository
+import io.hexlet.calendar.db.Database
+import io.hexlet.calendar.meetingtypes.MeetingTypeRepository
+import io.hexlet.calendar.owner.Owner
+import io.hexlet.calendar.routes.bookingRoutes
+import io.hexlet.calendar.routes.frontendRoutes
+import io.hexlet.calendar.routes.healthRoutes
+import io.hexlet.calendar.routes.installErrorHandling
+import io.hexlet.calendar.routes.meetingTypeRoutes
+import io.hexlet.calendar.routes.ownerRoutes
+import io.hexlet.calendar.slots.BookingWindow
+import io.ktor.serialization.kotlinx.json.json
+import io.ktor.server.application.Application
+import io.ktor.server.application.install
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
+import io.ktor.server.plugins.calllogging.CallLogging
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.routing.routing
+import kotlinx.serialization.json.Json
+import java.io.File
+import java.time.Clock
+import java.time.ZoneId
+import javax.sql.DataSource
+
+private const val DEFAULT_PORT = 8080
+
+fun main() {
+    val port = listenPort()
+    embeddedServer(Netty, port = port, host = "0.0.0.0", module = { module() })
+        .start(wait = true)
+}
+
+/**
+ * Порт HTTP-сервера: `PORT` (его задают хостинги и проверка Docker-образа), затем `BACKEND_PORT`
+ * (локальная разработка и e2e), иначе 8080.
+ */
+fun listenPort(env: (String) -> String? = System::getenv): Int =
+    sequenceOf("PORT", "BACKEND_PORT")
+        .firstNotNullOfOrNull { name -> env(name)?.trim()?.toIntOrNull() }
+        ?: DEFAULT_PORT
+
+/**
+ * @param dataSource PostgreSQL; по умолчанию — `DATABASE_URL` или embedded.
+ * @param clock источник «сейчас»; тесты передают `Clock.fixed(...)`.
+ * @param owner профиль Владельца; по умолчанию — из `OWNER_*` переменных окружения.
+ * @param staticDir собранный frontend (`STATIC_DIR`, задан в Docker-образе); без него отдаётся только API.
+ */
+fun Application.module(
+    dataSource: DataSource = Database.fromEnvironment(),
+    clock: Clock = Clock.systemUTC(),
+    owner: Owner = Owner.fromEnvironment(),
+    staticDir: File? = System.getenv("STATIC_DIR")?.let(::File),
+) {
+    Database.migrate(dataSource)
+
+    install(ContentNegotiation) {
+        json(
+            Json {
+                ignoreUnknownKeys = true
+                explicitNulls = false
+            },
+        )
+    }
+    install(CallLogging)
+    installErrorHandling()
+
+    routing {
+        healthRoutes()
+        ownerRoutes(owner)
+        val meetingTypes = MeetingTypeRepository(dataSource)
+        val bookings = BookingRepository(dataSource)
+        val bookingWindow = BookingWindow(ZoneId.of(owner.timeZone))
+        meetingTypeRoutes(meetingTypes, bookings, bookingWindow, clock)
+        bookingRoutes(meetingTypes, bookings, bookingWindow, clock)
+        // Последним: SPA-fallback не должен перехватывать маршруты API.
+        staticDir?.let { frontendRoutes(it) }
+    }
+}
