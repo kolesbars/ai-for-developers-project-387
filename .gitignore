@@ -20,3 +20,6 @@ build/
 .env
 .env.local
 mise.local.toml
+
+# Lighthouse-отчёты аудита (воркфлоу audit)
+audit-report/
