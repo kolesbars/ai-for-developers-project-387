@@ -10,8 +10,9 @@ const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
  * компонент, поэтому после перезагрузки `slots` Гость остаётся на своём дне.
  *
  * @param notice — сообщение над списком времени (например, о конфликте после отправки формы).
- * @param initialDay — день (`YYYY-MM-DD`), открытый при монтировании, если в нём есть свободное
- *   время; иначе — первый день со свободным временем.
+ * @param initialDay — день (`YYYY-MM-DD`), открытый при монтировании, если в нём есть Слоты —
+ *   даже когда все заняты (после конфликта Гость видит своё время зачёркнутым); иначе — первый
+ *   день со свободным временем.
  */
 export function SlotPicker({
   slots,
@@ -31,7 +32,7 @@ export function SlotPicker({
   const days = windowDays(slots, new Date())
   const [pickedDay, setPickedDay] = useState(initialDay)
   const day =
-    days.find((d) => d.key === pickedDay && d.free > 0) ?? days.find((d) => d.free > 0)
+    days.find((d) => d.key === pickedDay && d.slots.length > 0) ?? days.find((d) => d.free > 0)
 
   return (
     <>

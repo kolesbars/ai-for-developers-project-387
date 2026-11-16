@@ -442,4 +442,25 @@ describe('страница записи: конфликт', () => {
       expect(again.getByRole('textbox', { name: /Комментарий/ })).toHaveValue('Про контракт API')
     },
   )
+
+  it('после конфликта на последнее свободное время дня Гость остаётся на этом дне', async () => {
+    openBookingPage([], {
+      'GET /api/meeting-types/consultation/slots': [
+        { body: [thursday, slot(monday0900, 'busy'), slot(monday1000)] },
+        { body: [thursday, slot(monday0900, 'busy'), slot(monday1000, 'busy')] },
+      ],
+      'POST /api/bookings': { status: 409, body: { code: 'slot_taken', message: 'с сервера' } },
+    })
+
+    fireEvent.click((await calendar()).getByRole('button', { name: 'понедельник, 16 ноября' }))
+    fireEvent.click((await times()).getByRole('button', { name: '10:00' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Продолжить · 10:00–11:00' }))
+    const form = within(await screen.findByRole('form', { name: 'Ваши данные' }))
+    fillGuest(form)
+    fireEvent.click(form.getByRole('button', { name: 'Записаться' }))
+
+    const list = await times()
+    expect(await list.findByRole('button', { name: '10:00 занято' })).toBeDisabled()
+    expect(list.getByRole('heading', { name: 'понедельник, 16 ноября' })).toBeInTheDocument()
+  })
 })
