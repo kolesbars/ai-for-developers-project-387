@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/kolesbars/ai-for-developers-project-387/compare/v1.1.0...v1.1.1) (2026-11-16)
+
+
+### Документация
+
+* автотриаж в README ([#10](https://github.com/kolesbars/ai-for-developers-project-387/issues/10)) ([c69dc36](https://github.com/kolesbars/ai-for-developers-project-387/commit/c69dc36a1587991d1b7cdbe4315673d958827b24))
+
 ## [1.1.0](https://github.com/kolesbars/ai-for-developers-project-387/compare/v1.0.0...v1.1.0) (2026-11-16)
 
 
