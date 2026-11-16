@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.2](https://github.com/kolesbars/ai-for-developers-project-387/compare/v1.2.1...v1.2.2) (2026-11-16)
+
+
+### Исправления
+
+* **ci:** лимит не отклоняет одновременные команды, отчёт о сбое через REST ([5dea931](https://github.com/kolesbars/ai-for-developers-project-387/commit/5dea931ade243a9baadb13482fdf975cb3c886fd))
+* **ci:** лимит не отклоняет одновременные команды, отчёт о сбое через… ([bcf48d4](https://github.com/kolesbars/ai-for-developers-project-387/commit/bcf48d41cc2d4cba6e5be9ac4b998101e11d37bd))
+
 ## [1.2.1](https://github.com/kolesbars/ai-for-developers-project-387/compare/v1.2.0...v1.2.1) (2026-11-16)
 
 
