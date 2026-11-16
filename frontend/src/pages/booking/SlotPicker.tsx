@@ -52,6 +52,14 @@ export function SlotPicker({
           <Title order={2} size="h4">
             {day ? formatDay(day.date) : 'Нет свободного времени'}
           </Title>
+          <Text size="xs" c="dimmed">
+            Записаться можно не позже чем за 1 час до начала встречи.
+          </Text>
+          {!day && (
+            <Text size="sm">
+              Свободных Слотов не осталось: ближайшее время недоступно из-за запаса в 1 час. Загляните позже.
+            </Text>
+          )}
           <Stack gap={6}>
             {day?.slots.map((slot) => (
               <TimeButton

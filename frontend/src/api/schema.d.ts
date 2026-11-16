@@ -251,7 +251,7 @@ export interface components {
             code: "slot_taken";
             message: string;
         };
-        /** @description Старт вне Окна записи или Рабочих часов, не на сетке :00/:30 или уже в прошлом. */
+        /** @description Старт вне Окна записи или Рабочих часов, не на сетке :00/:30, в прошлом или раньше Минимального запаса до встречи (now + 1 час). */
         SlotUnavailableError: {
             /** @enum {string} */
             code: "slot_unavailable";
@@ -345,7 +345,7 @@ export interface operations {
                     "application/json": components["schemas"]["SlotTakenError"];
                 };
             };
-            /** @description Старт вне Окна записи или Рабочих часов, не на сетке :00/:30 или уже в прошлом. */
+            /** @description Старт вне Окна записи или Рабочих часов, не на сетке :00/:30, в прошлом или раньше Минимального запаса до встречи (now + 1 час). */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -40,7 +40,10 @@ class ApiException(
         fun slotTaken() = ApiException(HttpStatusCode.Conflict, ApiError("slot_taken", "Это время только что заняли. Выберите другое."))
 
         fun slotUnavailable() =
-            ApiException(HttpStatusCode.UnprocessableEntity, ApiError("slot_unavailable", "Это время больше недоступно."))
+            ApiException(
+                HttpStatusCode.UnprocessableEntity,
+                ApiError("slot_unavailable", "Это время больше недоступно. Записаться можно не позже чем за 1 час до начала встречи."),
+            )
 
         fun bookingNotFound() = ApiException(HttpStatusCode.NotFound, ApiError("booking_not_found", "Бронирование не найдено"))
 

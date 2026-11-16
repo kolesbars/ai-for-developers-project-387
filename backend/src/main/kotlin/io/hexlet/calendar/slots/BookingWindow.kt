@@ -10,11 +10,14 @@ private const val WINDOW_DAYS = 14L
 private val WORK_START: LocalTime = LocalTime.of(9, 0)
 private val WORK_END: LocalTime = LocalTime.of(18, 0)
 private val STEP: Duration = Duration.ofMinutes(30)
+
+/** Минимальный запас до встречи: старт не раньше `now + 1 час` (по реальному времени). */
+private val LEAD_TIME: Duration = Duration.ofHours(1)
 private val WEEKEND = setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
 
 /**
  * Сетка стартов Окна записи (спецификация §3): дни D…D+13 по поясу Владельца, пн–пт,
- * старты с шагом 30 минут от 09:00 до 18:00 − длительность, только позже [now].
+ * старты с шагом 30 минут от 09:00 до 18:00 − длительность, только не раньше `now +` [LEAD_TIME] (граница включительная).
  * Единственный источник правил расписания: и для списка Слотов, и для проверки `startAt` Бронирования.
  */
 class BookingWindow(
@@ -26,6 +29,7 @@ class BookingWindow(
         duration: Duration,
     ): List<Instant> {
         val today = now.atZone(zone).toLocalDate()
+        val earliest = now.plus(LEAD_TIME)
         val lastStart = WORK_END.minus(duration)
         return (0 until WINDOW_DAYS)
             .map { today.plusDays(it) }
@@ -34,7 +38,7 @@ class BookingWindow(
                 generateSequence(WORK_START) { it.plus(STEP) }
                     .takeWhile { !it.isAfter(lastStart) }
                     .map { day.atTime(it).atZone(zone).toInstant() }
-            }.filter { it.isAfter(now) }
+            }.filter { !it.isBefore(earliest) }
     }
 
     /** `true`, если [start] — старт из сетки текущего Окна записи (иначе `422 slot_unavailable`). */

@@ -218,6 +218,33 @@ class BookingsTest {
         }
 
     @Test
+    fun `запас 1 час — раньше now + 1 час 422 slot_unavailable, ровно now + 1 час 201`() =
+        apiTest(clock = fixedClock(Instant.parse("2026-11-12T05:00:00Z"))) {
+            meetingType("half", "Полчаса", 30)
+
+            // now = 10:00
+            for (startAt in listOf("2026-11-12T05:30:00Z", "2026-11-12T05:59:00Z", "2026-11-12T05:00:00Z")) {
+                val response = book("half", startAt) // 10:30, 10:59, 10:00
+                assertEquals(HttpStatusCode.UnprocessableEntity, response.status, startAt)
+                assertEquals("slot_unavailable", response.code(), startAt)
+            }
+            assertEquals(HttpStatusCode.Created, book("half", "2026-11-12T06:00:00Z").status) // 11:00
+        }
+
+    @Test
+    fun `запас не затрагивает ранее созданное Бронирование`() {
+        val clock = MutableClock(Instant.parse("2026-11-12T03:00:00Z")) // 08:00
+        apiTest(clock = clock) {
+            meetingType("hour", "Час", 60)
+            assertEquals(HttpStatusCode.Created, book("hour", "2026-11-12T04:00:00Z").status) // 09:00
+
+            clock.now = Instant.parse("2026-11-12T04:00:00Z") // 09:00: запас давно «съел» это время
+            val list = client.getJson("/api/bookings").json().jsonArray
+            assertEquals(listOf("2026-11-12T04:00:00Z"), list.map { it.jsonObject.str("startAt") })
+        }
+    }
+
+    @Test
     fun `бронирование свободного слота — 201, endAt и meetingTypeName считает сервер`() =
         apiTest {
             meetingType("consultation", "Консультация", 60)

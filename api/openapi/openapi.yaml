@@ -59,7 +59,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/SlotTakenError'
         '422':
-          description: Старт вне Окна записи или Рабочих часов, не на сетке :00/:30 или уже в прошлом.
+          description: Старт вне Окна записи или Рабочих часов, не на сетке :00/:30, в прошлом или раньше Минимального запаса до встречи (now + 1 час).
           content:
             application/json:
               schema:
@@ -452,7 +452,7 @@ components:
             - slot_unavailable
         message:
           type: string
-      description: Старт вне Окна записи или Рабочих часов, не на сетке :00/:30 или уже в прошлом.
+      description: Старт вне Окна записи или Рабочих часов, не на сетке :00/:30, в прошлом или раньше Минимального запаса до встречи (now + 1 час).
     ValidationError:
       type: object
       required:
