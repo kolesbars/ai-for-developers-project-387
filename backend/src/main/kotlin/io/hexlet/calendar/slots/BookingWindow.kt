@@ -12,7 +12,7 @@ private val WORK_END: LocalTime = LocalTime.of(18, 0)
 private val STEP: Duration = Duration.ofMinutes(30)
 
 /** Минимальный запас до встречи: старт не раньше `now + 1 час` (по реальному времени). */
-private val LEAD_TIME: Duration = Duration.ZERO // ВРЕМЕННО: проверка, что CI ловит нарушение запаса (#35)
+private val LEAD_TIME: Duration = Duration.ofHours(1)
 private val WEEKEND = setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
 
 /**
